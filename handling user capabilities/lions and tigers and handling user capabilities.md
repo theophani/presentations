@@ -23,19 +23,14 @@
 # Handling User Capabilities
 
 ^ I’m here to talk about user capabilities, meaning the things the people **can do**, but more importantly, what they **can‘t do**.
-In your career as a designer or developer of software, you will very likely encounter some kind of need to user restrict access to some feature of the software you build.
+In your career as a designer or developer of software, you will very likely encounter some kind of need to -restrict- access to some feature of the software you build.
 This is especially true for someone like myself who builds tools, but I imagine that this is true to some extend for many of you.
 
 ---
 
-# (Examples)
+### (Examples)
 
-^^^
-[Example blog page with these showing/not]
-[Upgrade for XXX feature]
-[Online Shop UI?]
-
-^^^
+^
 * In a WordPress blog theme, only the blog owner should see edit links, and only when they are logged in.
 * Only premium users should get access to extra features.
 * Only supervisors can edit product categories in an online shop.
@@ -51,6 +46,8 @@ This is especially true for someone like myself who builds tools, but I imagine 
 ### On a hunt for
 ## ways to approach
 ### User Capabilities
+
+^ When I wanted to introduce access restrictions to the application I build, I went on a hunt for existing approaches to   for handling user access restrictions, and I’ve gathered my findings to share with you.
 
 ---
 
@@ -92,7 +89,7 @@ This is especially true for someone like myself who builds tools, but I imagine 
 ## *helps people to*
 ## 1. avoid mistakes
 
-^ (part 1.1 in here)
+^ So, first.
 
 ---
 
@@ -105,15 +102,13 @@ This is especially true for someone like myself who builds tools, but I imagine 
 ## People *should not be able* to do things that they
 ## *are not allowed* do
 
-^ People should not be **able** to do things that they are **not allowed** to do. [Sign: Staff Only] [Trained personnel only]
+^ People should not be **able** to do things that they are **not allowed** to do.
+
+^ This may seem so obvious there is no point is saying it
 
 ^If someone is not *allowed* to do something, then your system should not let them do it. The alternative could be that we just trust that people won’t do things they are not allowed to, but that is irresponsible.
 
-^ This may seem so obvious there is no point is saying it, but this was not always the case. (I assume. Evidence?)
-
 ^ Also, in human societies, there are lots of examples where we don’t actually prevent people from doing things they are not allowed to do. We just **tell** them they aren’t allowed to and trust or **hope** they won’t do it.
-
-^ In a work environment:
 
 ^ In computer environments, we don’t have to just trust people, because we do have the ability to at least attempt restricting access.
 
@@ -461,6 +456,9 @@ or
 is *better UX* than
 # Access Control Lists
 
+^ (redundant?)
+^ We saw that Access Control Lists were hard to manage because the person managing the permissions would need to assign a collection of granular capabilities, which means they would need to have a detailed understanding the kind of work a person will be doing. Figuring out how a role matches a set of capabilities is a thoughtful process that should be done collaboratively between a product designer and the people who understand the roles. All the reasoning that maps interactions to roles is stored as the relationship between the role and its capabilities.
+
 ---
 
 ## *RECAP*
@@ -502,34 +500,364 @@ is *better UX* than
 
 ---
 
-Recommended approach:
+## but first, my
+# *assumptions*
 
-1. Enforce both server-side and client-side (duh?)
-2. Check capabilities, not role
-3. a. Map restricted UI elements to one or more capability
-3. b. Map restricted endpoints to one or more capability
-
-
-
-Assumptions:
-- client-side rendered app
-- using REST APIs
-- the server can tell the client what 
-
-The server is the authority, but the client has to reflect the capabilities, therefore the client needs to be able to ask the server “what capabilities does the authenticated user have?”
-
-
+^
+- we are talking about implementation in client-side rendered apps
+- that use REST APIs to load and save data asynchronously
+- and the server can tell the client details about the authenticated user.
+- Though, same ideas can apply to server-side rendered views as well.
 
 ---
 
-Must enforce both server- and client-side,
-but want simple, decoupled logic
+^ Following directly from my conclusions about UX, I had these constraints when I thought about implementing user access restrictions:
 
-Can map restricted UI elements to one or more capability.
+## [fit] Implementation Constraints:
+### <br>
+### 1. only grant *necessary* capabilities
+### 2. UI must *communicate* capabilities
+### 3. use *Role-based* Access Control
 
-Can map restricted endpoints to one or more capability.
+^ I also had this additional constraint when it came to the implementation, which is so fundamental, I will number it zero:
 
 ---
+
+### 0. The server-side must
+### enforce the restrictions
+
+^ Access restrictions need to be enforced on the server side, because your web UI can be easily circumvented
+
+---
+
+![left](client-exploit.png)
+
+### [fit] The server-side must
+### [fit] enforce the restrictions
+### <br>
+### [fit] ← or else stuff like this is possible
+
+^ The server must be the authority on what access rights the user has.
+
+---
+### the server-side must
+## enforce the restrictions,
+#### <br>
+### and the client-side must
+## reflect the restrictions
+
+^ Therefore, the server-side must enforce the restrictions, and the client-side must reflect the restrictions
+
+^ This conclusion made me worried that I was going to have to duplicate logic in multiple places in both server code and client code, and I wanted to find a way for this to be as simple as possible. I knew I wanted to avoid logic like this:
+
+---
+
+```javascript
+// Don’t do this
+
+if ( "Junior Warehouse Clerk" in user.roles ||
+     "Warehouse Clerk"        in user.roles ||
+     "Warehouse Manager"      in user.roles ) {
+     // Show "View Orders" button ...
+}
+```
+
+^ The problem with this approach is: what if these roles change definition, or you added new roles? You would have to update the code everywhere.
+
+^ With this approach, you are in affect defining how a role controls access, which goes against the point of having roles defined as a collection of capabilities.
+
+^ In other works, all the logic that explains that a "Junior Warehouse Clerk" and "Warehouse Clerk" and a "Warehouse Manager" can all see the "View Orders" button is captured in the definitions of the roles  themselves.
+
+^ So, instead your logic should focus on the capabilities directly:
+
+---
+
+```javascript
+// Do it like this!
+
+if ( "view orders" in user.capabilities ) {
+
+     // Show "View Orders" button ...
+
+}
+```
+
+^ Since the client has to know the capabilities, the client needs to be able to ask the server “what capabilities does the authenticated user have?” (or the server has to proactively tell it)
+
+---
+
+```javascript
+$.ajax(
+  url: "/_api/me/capabilities",
+  success: function (response) {
+    user.capabilities = response.capabilities
+  }
+})
+```
+
+^ … which if you needed to, you could implement by asking for the capabilities of the signed in user before you could began rendering the UI
+
+^ You’ll want this collection of capabilities to be current, so if your app never does a full reload, you’ll need to have a strategy for refreshing the list of capabilities
+
+---
+
+```javascript
+// Checking for one capability
+
+if ( "view orders" in user.capabilities ) {
+
+     // Show "View Orders" button ...
+
+}
+```
+
+^ So this is for checking for one capability. But what if the UI element is something more complicated?
+
+---
+
+![](example-menu.png)
+
+^ Maybe the UI element is a dropdown menu with three actions in it. If the person can’t do any of the actions, then you don’t want to show the menu at all.
+
+---
+
+```javascript
+// Checking for more than one capability
+
+if ( "view orders"      in user.capabilities ||
+     "edit orders"      in user.capabilities ||
+     "manage customers" in user.capabilities ) {
+     // Show drop down menu icon ...
+}
+```
+
+^ You would need something like this.
+
+^ By definition, the “capabilities” that a person has are the ones they *need* in order to complete a process.
+
+---
+
+#### *[This kind of]*
+#### <br>
+## Capability checking
+## is *additive*
+
+^ Because having any one capability is sufficient, the logic becomes purely additive, meaning “can this, that or the other” and never something complex such as “can this and that, or this and the other”
+
+---
+
+^ It would be nice to have a convenience method that worked like this:
+
+```javascript
+can ( user, ["view orders"]  )
+// returns true if user can view orders
+
+can ( user, ["action one", "action two", "action three"] )
+ // returns true if the user can do any of the actions
+```
+---
+
+```javascript
+function can (user, requiredCapabilities) {
+    return requiredCapabilities.some(function (capability) {
+        return capability in user.capabilities
+    })
+}
+```
+
+^ Here is an implementation of the can method
+
+---
+
+^ If you wanted to know if the user could do something then you would have:
+
+```javascript
+if ( can (user, ["do something"]) ) {
+    // ...
+}
+
+```
+
+---
+
+^ and you wanted to know if the user could do either of two things, you would have:
+
+```javascript
+if ( can (user, ["do action", "do another action"]) ) {
+    // ...
+}
+```
+
+---
+
+## What about
+## “Logic-less” Templates?
+
+^ Hands up if you have ever used mustache templates
+
+---
+
+```javascript
+// in your view code
+mustache.render(template, {
+    can: user.capabilities,
+    // ...
+})
+```
+
+```html
+<!-- in your mustache template -->
+{{#can.viewOrders}}
+    <a link=“/orders">View Orders</a>
+{{/can.viewOrders}}
+```
+
+^ You could also pass in the user’s capabilities as the view variable “can” and then you get something such as this.
+
+^ If the user’s capabilities are an object with named properties for the capabilities they have, then you can get the same kind of logic in your template like this
+
+^ This does get a bit more intense if you have more than one capability you are checking.
+
+---
+
+^ So say you have the kind of menu we mentioned like this:
+
+```html
+<nav>
+  {{#can.viewOrders}}
+	  <a link="/orders">View Orders</a>
+  {{/can.viewOrders}}
+  {{#can.createOrders}}
+	  <a link="/orders/new">Add Order</a>
+  {{/can.createOrders}}
+</nav>
+```
+
+^ If the user can’t view orders nor create orders, they should not see this menu, but if they can either view orders or create orders, they should be able to see this menu.
+
+---
+
+```html
+<!-- This doesn’t work -->
+{{#can.viewOrders}}
+    {{#can.createOrders}}
+        <nav> ... </nav> 
+    {{/can.createOrders}}
+{{/can.viewOrders}}
+```
+<br>
+
+^ You can’t do something such as this with nested blocks, because this is an AND operation, not an OR.
+
+---
+
+```javascript
+var capabilities = user.capabilities
+
+if ( can(user, ["view orders", "create orders"]) ) {
+    capabilities.viewMenu = true;
+}
+
+mustache.render(template, {
+    can: capabilities,
+    // ...
+})
+```
+
+^ Instead, you can augment the user’s capabilities with view-specific ones before passing them into the mustache render method
+
+---
+
+```html
+{{#can.viewMenu}}
+    <nav> ... </nav>
+{{/can.viewMenu}}
+```
+
+^ and then you can use this resulting value in the template.
+
+---
+
+```html
+<!-- Handlebar template containing a “can” block helper -->
+{{#can "viewOrders editOrder"}}
+    <nav> ... </nav>
+{{/can}}
+```
+<br>
+
+```javascript
+// Define the block helper ...
+function canBlockHelper (requiredCapabilities, options) { 
+   // ...
+   return hasSomeCapabilities ? options.fn(this) : ""
+}
+// ... and register it as “can”
+Handlebars.registerHelper("can", canBlockHelper);
+```
+
+^ If you use Handlebars, you could avoid augmenting your view specific capabilities by registering a block helper that checks among a list of required capabilities before processing the contents of the block
+
+---
+
+```html
+{{#can "viewOrders editOrder"}}
+  <nav>
+    {{#can "viewOrders"}}
+	    <a link="/orders">View Orders</a>
+    {{/can}}
+    {{#can "createOrders"}}
+	    <a link="/orders/new">Add Order</a>
+    {{/can}}
+  </nav>
+{{/can}}
+```
+
+^ and you would use that block helper throughout your templates
+
+---
+
+```ruby
+# Use the same kind of “can” per route server-side
+
+get "/_api/orders"
+    can ( user, "view orders" ) do
+        # ...
+    end    
+end
+
+post "/_api/orders"
+    can ( user, "add orders" ) do
+        # ...
+    end    
+end
+```
+
+^ You can use this same idea in your server-side code.
+
+---
+
+## In conclusion …
+
+---
+
+## [fit] Implementation Constraints:
+### <br>
+### 1. only grant *necessary* capabilities
+### 2. UI must *communicate* capabilities
+### 3. use *Role-based* Access Control
+
+^ recall that the constraints when implementing capabilities were …
+
+---
+
+## [fit] Consider When implementing:
+### <br>
+### 1. Enforce in both server and client
+### but *make the server the authority*
+### [fit] 2. *Check against capabilities*, not roles
+
+^ To summarise these ideas regarding implementation:
 
 ---
 
@@ -538,237 +866,7 @@ Can map restricted endpoints to one or more capability.
 
 ---
 
-![](soundcloud.png)
+![](maple-leaves.jpg)
 
----
-
----
-
----
-
-Now, access restrictions need to be **enforced on the server side**, because your web UI can be easily circumvented
-(GIF: right click, view element, change an input name, save)
-
-So does that mean you don't have to be concerned about the UI, since the server side restrictions will save you?
-
-## 2. Communicate to people what they can and can't do
-
-No.
-
-Capabilities need to be **communicated in the interface** so that people know what they can and can’t do.
-(GIF: "click" SORRY THAT IS NOT ALLOWED. head explode)
-
-It is extremely poor UX for an interface to have non-functioning parts, or parts that allow you to do thinks should should not, and then scold you for it.
-
-That means that even though the server-side has to enforce capabilities, so does the UI have to be a reflection of the capabilities the user has.
-
-## 3. Choose an approach that makes it easy to manage capabilities
-
-[so that people don't end up with permissions they should not have]
-
-### 4. Choose an approach that makes it easy to enforce capabilities in both the server-side code and UI-rendering code
-
-^ The approach I chose to make it easy to enforce capabilities in both the server-side code and UI-rendering code.
-
-## Initial thoughts
-
-When I first thought about this, it sounded like I would need to have logic such as “IF x, THEN y” such as “IF user is has premium access THEN show the button”.
-
-## Permissions should be enforced in backend, and reflected in UI
-
-This logic would need to be in two places:
-
-1) Access restrictions need to be **enforced on the server side**, because your web UI can be easily circumvented
-(GIF: right click, view element, change an input name, save)
-
-2) Capabilities need to be **communicated in the interface** so that people know what they can and can’t do.
-(GIF: "click" SORRY THAT IS NOT ALLOWED. head explode)
-
-## Seeking pre-existing approaches
-
-I wanted to find an approach that would avoid a lot of if/else logic everywhere in the templates, and that would avoid duplicating this kind of logic in both the server side code and the UI rendering code.
-
-I knew I needed to do some kind of logic in client side because I did not want to require that the server-side knew too much about the UI. I really did not want something like: can_see_edit_button.
-
-I was looking for the simplest way I could pass around information about the logging in user that will allow me to determine “should the person see the edit button”?
-
-It was at this point that I started asking about for pre-existing approaches.
-
-## There is a vocabulary for this in Computer Science (subject, object, operations (?) …, Principle of Least Privilege) and names for different approaches. Two most widely used / discussed: ACL, RBAC.
-
-When I began talking to people about the approaches they used, and looking around for formalised ways of things I already knew about, I learned that there is an existing vocabulary for these concepts in computer science.
-
-**subject**: Subjects are active entities, such a user or a process.
-**object**: Objects are the things that subjects act upon.
-**operation**: Operations are the actions attempted by the subject on the object.
-**permission**: The granted right to perform the operation.
-**capability**: Those operations that the subject has the permission to perform on objects.
-
-For our purposes, I will sometimes limit my discussion to **people** performing **actions** on **things**.
-
-**subject**: person
-**object**: thing
-**operation**: action
-**permission**: gives the capability to a person to perform an action a thing
-
-## Access control list (ACL)
-
-An access control list (ACL) is a list of permissions for an object, and typically each entry specifies a subject and an operation for the object.
-
-An access control list (ACL) is a list of people who can perform an action on a thing.
-
-For example, the access control list for products may be:
-Alice can view products.
-Alice can edit products.
-Bob can view products.
-
-(If you have interacted with a UNIX-style file system, and had to change the permissions on a file or director, you were essentially setting the access control list.) <--- maybe omit?
-
-## The UX of maintaining permissions
-
-When I introduced access restrictions into the system I build, I also had to build the UI for managing those access restrictions, something that non-programmers could use to onboard their new colleagues.
-
-Maintaining an access control list can become very tedious.
-
-Imagine you have just hired a new junior warehouse clerk, and you want to give them access to the order management system. The clerk’s job will be to add incoming orders into the system, check over all the orders before they leave the warehouse, and answer any questions customers have about their order, including making changes to orders that customers ask for.
-
-It is your job to add the new person to your system, making sure they have all the permissions they need, and you get a list of operations per object like this:
-
-[long list of objects and operations]
-
-How do you know which actions to allow on which things? You would understand the job of a warehouse clerk very well. But this person is also a *Junior* Warehouse Clerk, so some things a more experienced clerk can do, the junior clerk should not be able to do.
-
-Maybe you have a template that you can apply called “Junior Warehouse Clerk” and it grants all the correct permissions.
-
-What if the Junior Warehouse Clerk will also be working one day a week as a Sales Rep? They will make outbound calls to customers who haven’t placed orders recently. When acting as the sales rep, they need to use features that a Junior Warehouse Clerk doesn’t have access to. Maybe you have a “Sales Rep” template of permission, but now you need a way to combine the permissions in the Sales Rep template and the Junior Warehouse Clerk template.
-
-What if the application gets new features that all the Warehouse Clerks need access to? You’d have to refer to a list of all the people work as Warehouse Clerks, and update all their permissions. And don’t forget to update your template!
-
-(Aside: Yes, I am intentionally ignoring the idea of groups in this description of access control lists. More on that in a moment.)
-
-## Role-Based Access Control (RBAC)
-
-Role-Based Access Control to the rescue!
-
-Instead of granting each person a laundry list of possibly changing capacities, you think instead in terms of the roles that exist in the organization, where role means job function.
-
-Permission to perform certain operations are assigned to specific roles, and can be assigned to more than one role.
-
-People are assigned roles that match to the job functions they have, and through these role assignments they are given all the capabilities they need to perform actions in the system.
-
-When a new feature is added to the system, the capability is added to the roles that will be using it, and the people with those roles get the capability by extension. If someone’s job function changes, then you can add and remove the roles they are assigned, which changes the capability they will have.
-
-## Distinction / lack of distinction between ACL and RBAC
-
-Just a quick note back to access control lists: many applications of access control lists that you encounter have the concept of “groups” which allows for the exact same benefits as roles in Role-Based Access Control. The difference is primary semantic: Role-Based Access Control focusses on the groups as organisational roles that people have that describe what those people can do.
-
-## Principle of Least Privilege
-
-SEGUE MISSING
-
-
-## Examples of operations a user with a role might conduct.
-
-## Defining roles together with the people who perform the job, and assigning roles by / together with the people who manage / supervise the operators.
-
-
-## Recap
-
-We define roles, we define what capabilities those roles have, then we assign people to those roles. When the person is authenticated, we know who they are and what their capabilities are.
-
-Now, if we need to see if a person can do something, we
-
-if ( user.capabilities.indexOf("view orders") > -1 ) {
-	// so simple!
-}
-
-But what if the UI element is something more complicated? Maybe it’s a dropdown  menu with three actions in it, and if the person can’t do any of the actions, then you don’t want to show the menu at all? You would have:
-
-if (
-	user.capabilities.indexOf("action one") > -1 ||
-	user.capabilities.indexOf("action two") > -1 ||
-	user.capabilities.indexOf("action three") > -1
-) {
-	// gross :(
-}
-
-## can function
-
-We want a function that works like this:
-
-can (user, ["view orders"]) // true if user can view orders
-can (user, ["action one", "action two", "action three"]) // returns true if you can do any
-
-function can (user, requiredCapabilities) {
-	return requiredCapabilities.some(function (capability) {
-		return user.capabilities.indexOf(capability) > -1
-	})
-}
-
-If you wanted to know if the user could do both of two things, then you could do:
-
-can (user, ["action one"]) && can (user, ["action two"])
-
-## Using capabilities instead of roles
-
-Because we look at the capabilities, and not the role, instead of something gross like this:
-
-if (
-	operator.role === "Junior Warehouse Clerk" ||
-	operator.role === "Warehouse Clerk" ||
-	operator.role === "Warehouse Manager"
-) {
-	// oh gawd no!!!
-}
-
-We can do this:
-
-if ( can (operator, ["view orders"]) ) {
-	// so simple!
-}
-
-if ( operator.capabilities.indexOf("view orders") > -1 ) {
-	// so simple!
-}
-
-All the logic that explains taht a "Junior Warehouse Clerk" and "Warehouse Clerk" and a "Warehouse Manager" can all see the "View Orders" button is captured in the definitions of the roles  themselves.
-
-## Another application
-
-Let's look at this same idea but with another application: free verses premium users:
-
-if (
-	user.plan === "level1" ||
-	user.plan === "free" ) {
-	// what if you get a new plan type?
-}
-
-We can do this:
-
-if ( can (user, ["upgrade_to_level2"]) ) {
-}
-
-### Anonymous versus signed in users:
-
-if ( user.signedIn ) {
-	// okay, not so bad
-}
-
-We could also do something like this:
-
-if ( can (user, ["edit"]) ) {
-}
-
-
-## How I ended up implementing these ideas
-(css does not work. show. with math?)
-
-## -Naive ideas to implement: Are these approaches good / bad / where should the logic go?- [remove section maybe?]
-
-(when thinking about how to do this, it will seem to get complicated)
-can_see_edit_button <-- wrong, but why?
-Need to determine calculate the logic for this somewhere. can(cap1, cap2, cap3) is all that is needed.
-
-(When rendering the templates, only some users should see the “Edit” button, or the “Daily Reports” tab.)
-
-## Meta Lesson: If you know the domain, it is easy (/ obvious how) to write the code. What is hard is recognising when to step back, and it is hard to know what questions to ask.
+# Thank you!
+### Tiffany Conroy – @theophani
