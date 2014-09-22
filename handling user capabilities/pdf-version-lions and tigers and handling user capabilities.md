@@ -1,5 +1,5 @@
-## *Lions and Tigers and*
-# Handling User Capabilities
+### *Lions and Tigers and*
+## Handling User Capabilities
 
 ---
 
@@ -16,8 +16,8 @@
 
 ---
 
-## *Lions and Tigers and*
-# Handling User Capabilities
+### *Lions and Tigers and*
+## Handling User Capabilities
 
 ^ I’m here to talk about user capabilities, meaning: the things the people *can do*, but more importantly, what they *can‘t do*.
 In your career as a designer or developer of software, you will very likely encounter some kind of need to restrict access to some feature of the software you build.
@@ -492,11 +492,14 @@ is *better UX* than
 ## but first, my
 # *assumptions*
 
-^
-- we are talking about implementation in client-side rendered apps,
-- that use REST APIs to load and save data asynchronously,
-- and the server can tell the client details about the authenticated user.
-- Though, same ideas can apply to server-side rendered views
+---
+* Client-side rendered apps,
+* that use REST APIs to
+load and save data asynchronously,
+* and the server can tell the client details
+about the authenticated user.
+
+(Though, same ideas can apply to server-side rendered views)
 
 ---
 
@@ -851,10 +854,3 @@ end
 
 # Thank you!
 ### *Tiffany Conroy – @theophani*
-
----
-
-![](maple-leaves.jpg)
-
-# Thank you!
-### Tiffany Conroy – @theophani
